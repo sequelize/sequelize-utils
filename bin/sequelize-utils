@@ -1,0 +1,29 @@
+#!/usr/bin/env node
+
+var program = require('commander')
+  , version = require(__dirname + '/../package.json').version
+  , sh      = require('execSync')
+  , _       = require('lodash')
+
+program
+  .version(version)
+  .option('-d, --download-repositories', 'Downloads all the related repositories.')
+  .parse(process.argv)
+
+if (program.downloadRepositories) {
+  sh.run('mkdir -p ' + __dirname + '/../repositories')
+
+  var remoteRepositories    = ['sequelize', 'sequelize-sqlite', 'sequelize-postgres', 'sequelize-mysql']
+    , availableRepositories = sh.exec('cd ' + __dirname + '/../repositories && ls -1').stdout.split("\n")
+    , necessaryRepositories = _.difference(remoteRepositories, _.compact(availableRepositories))
+
+  necessaryRepositories.forEach(function(name) {
+    sh.run('cd ' + __dirname + '/../repositories && git clone git@github.com:sequelize/' + name + '.git')
+  })
+
+  remoteRepositories.forEach(function(name) {
+    sh.run('cd ' + __dirname + '/../repositories/' + name + ' && git checkout master && git pull origin master')
+  })
+} else {
+  program.help()
+}
