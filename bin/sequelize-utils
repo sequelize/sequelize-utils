@@ -8,6 +8,7 @@ var program = require('commander')
 program
   .version(version)
   .option('-d, --download-repositories', 'Downloads all the related repositories.')
+  .option('-t, --test [branch]', 'Runs the tests for the given branch.', 'master')
   .parse(process.argv)
 
 if (program.downloadRepositories) {
@@ -24,6 +25,9 @@ if (program.downloadRepositories) {
   remoteRepositories.forEach(function(name) {
     sh.run('cd ' + __dirname + '/../repositories/' + name + ' && git checkout master && git pull origin master && npm install')
   })
+} else if (program.test) {
+  var result = sh.exec('cd ' + __dirname + '/../repositories/sequelize && make all')
+  console.log(result.code)
 } else {
   program.help()
 }
