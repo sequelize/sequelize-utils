@@ -1,0 +1,19 @@
+{
+  "name": "sequelize-utils",
+  "version": "0.0.0",
+  "description": "Some handy utils for the development of Sequelize.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/sequelize/sequelize-utils.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "readmeFilename": "README.md",
+  "bugs": {
+    "url": "https://github.com/sequelize/sequelize-utils/issues"
+  }
+}
