@@ -22,7 +22,7 @@ if (program.downloadRepositories) {
   })
 
   remoteRepositories.forEach(function(name) {
-    sh.run('cd ' + __dirname + '/../repositories/' + name + ' && git checkout master && git pull origin master')
+    sh.run('cd ' + __dirname + '/../repositories/' + name + ' && git checkout master && git pull origin master && npm install')
   })
 } else {
   program.help()
