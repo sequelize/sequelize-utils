@@ -1,33 +1,146 @@
 #!/usr/bin/env node
 
 var program = require('commander')
-  , version = require(__dirname + '/../package.json').version
   , sh      = require('execSync')
+  , semver  = require('semver')
   , _       = require('lodash')
+  , fs      = require('fs')
+
+var logAndExec = function (msg, cmd, options) {
+  options = _.extend({
+    dir:         null,
+    quitOnError: true
+  }, options || {})
+
+  if (options.dir) {
+    cmd = 'cd ' + __dirname + '/../' + options.dir + ' && ' + cmd
+  }
+
+  process.stdout.write(msg + " ... ")
+
+  var result = sh.exec(cmd)
+
+  if (result.code === 0) {
+    console.log("OK")
+  } else {
+    console.log("Failed!")
+
+    if (options.quitOnError) {
+      console.log()
+      console.log("Executed command:", cmd)
+      console.log("Output:", result.stdout)
+      process.exit(result.code)
+    } else {
+      return result
+    }
+  }
+}
+
+var getSequelizePackageJson = function() {
+  return JSON.parse(fs.readFileSync(__dirname + '/../repositories/sequelize/package.json').toString())
+}
+
+var getSequelizeVersion = function(branch) {
+  if (branch) {
+    sh.exec("cd " + __dirname + "/../repositories/sequelize && git checkout '" + branch + "'")
+    var result = getSequelizePackageJson().version
+    sh.exec("cd " + __dirname + "/../repositories/sequelize && git checkout master")
+    return result
+  } else {
+    return getSequelizePackageJson().version
+  }
+}
+
+var releaseVersion = function(version, branch) {
+  if (!semver.gt(version, getSequelizeVersion())) {
+    console.log('To be released version is not greater than the current version (' + version + ' <-> ' + getSequelizeVersion() +').')
+    process.exit(2)
+  }
+
+  if (/*(code = sh.run(__dirname + '/sequelize-utils -t ' + branch))*/ 0 === 0) {
+    console.log("Releasing the branch '" + branch + "' as v" + version + ".")
+    process.stdout.write('  - Updating the package.json with the new version ... ')
+
+    var packageJson = getSequelizePackageJson()
+    packageJson.version = version
+    fs.writeFileSync(
+      __dirname + '/../repositories/sequelize/package.json',
+      JSON.stringify(packageJson, null, 2)
+    )
+
+    console.log('OK')
+
+    logAndExec('  - Committing the new version',  "git commit -am 'v" + version + "'",  { dir: "repositories/sequelize" })
+    logAndExec('  - Tagging the new version', "git tag v" + version, { dir: "repositories/sequelize" })
+    logAndExec('  - Pushing the changes to Github', "echo 1", { dir: "repositories/sequelize" })
+    logAndExec('  - Publishing the new version to NPM', "echo 2", { dir: "repositories/sequelize" })
+    // logAndExec('  - Pushing the changes to Github', "git push && git push --tags", { dir: "repositories/sequelize" })
+    // logAndExec('  - Publishing the new version to NPM', "npm publish .", { dir: "repositories/sequelize" })
+  } else {
+    process.exit(code)
+  }
+}
 
 program
-  .version(version)
+  .version(require(__dirname + '/../package.json').version)
   .option('-d, --download-repositories', 'Downloads all the related repositories.')
-  .option('-t, --test [branch]', 'Runs the tests for the given branch.', 'master')
+  .option('-t, --test [branch]', 'Runs the tests for the given branch.')
+  .option('-r, --release [version]', 'Releases a new version after running the tests.')
   .parse(process.argv)
 
 if (program.downloadRepositories) {
-  sh.run('mkdir -p ' + __dirname + '/../repositories')
+  logAndExec("Creating the 'repositories' directory", 'mkdir -p ' + __dirname + '/../repositories')
 
   var remoteRepositories    = ['sequelize', 'sequelize-sqlite', 'sequelize-postgres', 'sequelize-mysql']
     , availableRepositories = sh.exec('cd ' + __dirname + '/../repositories && ls -1').stdout.split("\n")
     , necessaryRepositories = _.difference(remoteRepositories, _.compact(availableRepositories))
 
   necessaryRepositories.forEach(function(name) {
-    sh.run('cd ' + __dirname + '/../repositories && git clone git@github.com:sequelize/' + name + '.git')
+    logAndExec("Cloning into '" + name + "'", 'git clone git@github.com:sequelize/' + name + '.git', {
+      dir: 'repositories'
+    })
   })
 
   remoteRepositories.forEach(function(name) {
-    sh.run('cd ' + __dirname + '/../repositories/' + name + ' && git checkout master && git pull origin master && npm install')
+    logAndExec("Fetching the latest changes of '" + name +"' on 'master'", "git checkout master && git checkout . && git pull origin master", {
+      dir: 'repositories/' + name
+    })
+
+    logAndExec("Installing packages of '" + name +"' on 'master'", "npm install", {
+      dir: 'repositories/' + name
+    })
   })
-} else if (program.test) {
-  var result = sh.exec('cd ' + __dirname + '/../repositories/sequelize && make all')
-  console.log(result.code)
+} else if (typeof program.test === 'string') {
+  logAndExec(
+    "Running tests of 'sequelize' on '" + program.test + "'",
+    "git checkout " + program.test + " && make all",
+    { dir: "repositories/sequelize" }
+  )
+} else if (typeof program.release === 'string') {
+  if (!semver.valid(program.release)) {
+    console.log("Invalid version '" + program.release + "'")
+    process.exit(1)
+  }
+
+  var code = null
+
+  if ((code = sh.run(__dirname + '/sequelize-utils -d')) === 0) {
+    var m2Version = getSequelizeVersion('milestones/2.0.0')
+
+    releaseVersion(program.release, 'master')
+
+    sh.exec("cd " + __dirname + "/../repositories/sequelize && git checkout 'milestones/2.0.0' && git merge master")
+    sh.exec("cd " + __dirname + "/../repositories/sequelize && git merge master")
+    sh.exec("cd " + __dirname + "/../repositories/sequelize && git checkout --ours package.json && git commit -am 'merge'")
+
+    if (m2Version === '2.0.0-alpha3') {
+      m2Version = '2.0.0-beta.0'
+    } else {
+      m2Version = semver.inc(m2Version, 'prerelease')
+    }
+
+    releaseVersion(m2Version, 'milestones/2.0.0')
+  } else { process.exit(code) }
 } else {
   program.help()
 }
