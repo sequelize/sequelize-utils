@@ -10,7 +10,7 @@
     "type": "git",
     "url": "git://github.com/sequelize/sequelize-utils.git"
   },
-  "author": "",
+  "author": "Sascha Depold",
   "license": "MIT",
   "readmeFilename": "README.md",
   "bugs": {
