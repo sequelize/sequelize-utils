@@ -36,8 +36,12 @@ var logAndExec = function (msg, cmd, options) {
   }
 }
 
-var getSequelizePackageJson = function() {
-  return JSON.parse(fs.readFileSync(__dirname + '/../repositories/sequelize/package.json').toString())
+var getSequelizePackageJson = function(dialect) {
+  if (dialect) {
+    return JSON.parse(fs.readFileSync(__dirname + '/../repositories/sequelize-' + dialect + '/package.json').toString())
+  } else {
+    return JSON.parse(fs.readFileSync(__dirname + '/../repositories/sequelize/package.json').toString())
+  }
 }
 
 var getSequelizeVersion = function(branch) {
@@ -70,7 +74,7 @@ var releaseVersion = function(version, branch) {
 
     console.log('OK')
 
-    logAndExec('  - Committing the new version',  "git commit -am 'v" + version + "'",  { dir: "repositories/sequelize" })
+    logAndExec('  - Committing the new version',  "git commit -am 'v" + version + "'", { dir: "repositories/sequelize" })
     logAndExec('  - Tagging the new version', "git tag v" + version, { dir: "repositories/sequelize" })
     logAndExec('  - Pushing the changes to Github', "echo 1", { dir: "repositories/sequelize" })
     logAndExec('  - Publishing the new version to NPM', "echo 2", { dir: "repositories/sequelize" })
@@ -81,11 +85,38 @@ var releaseVersion = function(version, branch) {
   }
 }
 
+var updateBundle = function(dialect, branch) {
+  sh.exec("cd " + __dirname + "/../repositories/sequelize-" + dialect + " && git checkout " + branch + " && git pull origin " + branch)
+
+  var packageJson = getSequelizePackageJson(dialect)
+    , version     = getSequelizeVersion(branch)
+
+  console.log("Releasing the branch '" + branch + "' as v" + version + " for the dialect bundle " + dialect + ".")
+
+  process.stdout.write('  - Updating the package.json with the new version ... ')
+
+  packageJson.version = packageJson.dependencies.sequelize = version
+  fs.writeFileSync(
+    __dirname + '/../repositories/sequelize-' + dialect + '/package.json',
+    JSON.stringify(packageJson, null, 2)
+  )
+
+  console.log('OK')
+
+  logAndExec('  - Committing the new version',  "git commit -am 'v" + version + "'", { dir: "repositories/sequelize-" + dialect })
+  logAndExec('  - Tagging the new version', "git tag v" + version, { dir: "repositories/sequelize-" + dialect })
+  logAndExec('  - Pushing the changes to Github', "echo 1", { dir: "repositories/sequelize-" + dialect })
+  logAndExec('  - Publishing the new version to NPM', "echo 2", { dir: "repositories/sequelize-" + dialect })
+  // logAndExec('  - Pushing the changes to Github', "git push && git push --tags", { dir: "repositories/sequelize-" + dialect })
+  // logAndExec('  - Publishing the new version to NPM', "npm publish .", { dir: "repositories/sequelize-" + dialect })
+}
+
 program
   .version(require(__dirname + '/../package.json').version)
   .option('-d, --download-repositories', 'Downloads all the related repositories.')
   .option('-t, --test [branch]', 'Runs the tests for the given branch.')
   .option('-r, --release [version]', 'Releases a new version after running the tests.')
+  .option('-u, --update-bundles', 'Releases new bundles for the supported dialects.')
   .parse(process.argv)
 
 if (program.downloadRepositories) {
@@ -141,6 +172,11 @@ if (program.downloadRepositories) {
 
     releaseVersion(m2Version, 'milestones/2.0.0')
   } else { process.exit(code) }
+} else if (program.updateBundles) {
+  (['mysql', 'sqlite', 'postgres']).forEach(function(dialect) {
+    updateBundle(dialect, 'master')
+    updateBundle(dialect, 'milestones/2.0.0')
+  })
 } else {
   program.help()
 }
