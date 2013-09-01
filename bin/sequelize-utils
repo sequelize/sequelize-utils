@@ -9,6 +9,7 @@ program
   .option('-t, --test [branch]', 'Runs the tests for the given branch.')
   .option('-r, --release [version]', 'Releases a new version after running the tests.')
   .option('-u, --update-bundles', 'Releases new bundles for the supported dialects.')
+  .option('-f, --force', "Submit changes to the remote servers.")
   .parse(process.argv)
 
 var app = new App(program)
