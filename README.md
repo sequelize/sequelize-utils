@@ -31,9 +31,9 @@ In order to release version of Sequelize you just have to call this:
 bin/sequelize-utils -d
 
 # release a new version + the respective v2.0.0
-bin/sequelize-utils -r 1.7.0-beta.<X>
+bin/sequelize-utils -fr 1.7.0-beta.<X>
 
 # release the bundled versions
-bin/sequelize-utils -u
+bin/sequelize-utils -fu
 
 ```
