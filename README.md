@@ -1,5 +1,7 @@
 # sequelize-utils
 
+[![Greenkeeper badge](https://badges.greenkeeper.io/sequelize/sequelize-utils.svg)](https://greenkeeper.io/)
+
 
 Some handy utils for the development of Sequelize.
 
